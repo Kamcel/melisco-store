@@ -47,8 +47,8 @@ const STORE_CONFIG = {
 // service-role key or database password in frontend JavaScript!
 // ─────────────────────────────────────────────
 const SUPABASE_CONFIG = {
-  url: "", // e.g. "https://xyzcompany.supabase.co"
-  anonKey: "", // e.g. "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  url: "https://ybdfshhmxwtnuexmzfqc.supabase.co", // e.g. "https://xyzcompany.supabase.co"
+  anonKey: "sb_publishable_Exk7k1jbhBBpmXH_f6Suuw_xmyAW6yF", // e.g. "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
   storageBucket: "product-images",
   // Keep false for any deployed/live store. Enable only for local UI previews.
   allowLocalDemoMode: false,
@@ -154,9 +154,10 @@ function formatPrice(amount) {
  */
 function isConfiguredWhatsApp(number) {
   if (!number) return false;
+
   const cleaned = String(number).replace(/[^0-9]/g, "");
-  // Must be at least 10 digits and not the placeholder
-  return cleaned.length >= 10 && cleaned !== "2347085835844";
+
+  return cleaned.length >= 10 && cleaned.length <= 15;
 }
 
 /**
