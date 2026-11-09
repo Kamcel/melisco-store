@@ -95,14 +95,25 @@ Because all demonstration images and scripts use relative paths, you can open `i
 
 ## 4. How to Run the SQL Migrations
 
-1. In your Supabase Dashboard, open the **SQL Editor** from the left navigation menu.
-2. Click **New Query**.
-3. Open `supabase/migrations/01_schema.sql` from this repository, copy its entire contents, paste it into the SQL Editor, and click **Run**.
-   - This creates the `products`, `product_images`, and `store_settings` tables, indexes, updated_at triggers, and enables Row Level Security (RLS).
-4. Create another new query, copy the contents of `supabase/migrations/02_storage.sql`, paste it, and click **Run**.
-   - This creates the public `product-images` storage bucket and security policies.
-5. Create a third new query, copy `supabase/migrations/03_seed.sql`, paste it, and click **Run**.
-   - This seeds realistic Nigerian gadget store inventory (used iPhone 11s, S10, laptops, earbuds, chargers).
+Run the SQL migration scripts in this exact order:
+
+1. **Migration 01 (`supabase/migrations/01_schema.sql`):**
+   - Open **SQL Editor** in your Supabase Dashboard.
+   - Paste the contents of `01_schema.sql` and click **Run**.
+   - This creates:
+     - `store_owners` allowlist table and `is_store_owner()` `SECURITY DEFINER` check.
+     - `products` table with database-level inventory constraints (`individual` stock clamped to 0 or 1).
+     - `product_images` table with unique constraint on `(product_id, url)`.
+     - `store_settings` table with `is_public` column.
+     - Row Level Security (RLS) policies granting read access to the public and owner-only mutation rights.
+
+2. **Migration 02 (`supabase/migrations/02_storage.sql`):**
+   - In a new query, paste the contents of `02_storage.sql` and click **Run**.
+   - This configures the `product-images` storage bucket with public read access and restricts upload, update, and delete operations strictly to `public.is_store_owner()`.
+
+3. **Migration 03 (`supabase/migrations/03_seed.sql`):**
+   - In a new query, paste the contents of `03_seed.sql` and click **Run**.
+   - This safely inserts sample demonstration gadgets as **drafts** (preventing them from appearing as real stock on the live storefront until published) and sets safe placeholder store settings. Repeated runs are completely safe and will not produce duplicate image records.
 
 ---
 
@@ -113,22 +124,38 @@ Because all demonstration images and scripts use relative paths, you can open `i
 3. Confirm that **Public bucket** is enabled (so product images can be read by visitors' browsers).
 4. Verify RLS policies on `storage.objects`:
    - `Public can view product images` allows anonymous `SELECT`.
-   - `Owner can upload product images` restricts `INSERT` to authenticated users (`auth.role() = 'authenticated'`).
-   - `Owner can delete product images` restricts `DELETE` to authenticated users.
+   - `Owner can upload product images` restricts `INSERT` strictly to authorized store owners (`public.is_store_owner()`).
+   - `Owner can update product images` restricts `UPDATE` strictly to `public.is_store_owner()`.
+   - `Owner can delete product images` restricts `DELETE` strictly to `public.is_store_owner()`.
 
 ---
 
-## 6. How to Create the Owner's First Account Securely
+## 6. How to Create and Authorize the Store Owner
 
-Public user registration is disabled to ensure only the authorized store owner can access management functions.
+Public user sign-ups should be disabled in Supabase to ensure no unauthorized accounts can be registered.
 
-To create the owner's account:
-1. In the Supabase Dashboard, navigate to **Authentication** > **Users**.
+### Step 1: Disable Public Sign-ups in Supabase
+1. In your Supabase Dashboard, go to **Authentication** > **Providers** > **Email**.
+2. Turn off **"Enable Email Signups"** (or uncheck "Allow new users to sign up").
+3. Click **Save**.
+
+### Step 2: Create Owner Account in Auth
+1. Go to **Authentication** > **Users**.
 2. Click **Add User** > **Create User**.
 3. Enter the store owner's email (e.g., `owner@meliscogadgets.ng`) and set a strong, unique password.
 4. Ensure **Auto Confirm User** is checked.
 5. Click **Create User**.
-6. The owner can now sign in at `https://your-domain.com/admin/`.
+
+### Step 3: Authorize the Owner Account in Database
+To grant this account owner privileges, register its ID in `store_owners`:
+1. Open the Supabase **SQL Editor**.
+2. Run this one-line SQL query (replace with the owner's email address):
+   ```sql
+   INSERT INTO public.store_owners (user_id, email)
+   SELECT id, email FROM auth.users WHERE email = 'owner@meliscogadgets.ng'
+   ON CONFLICT (user_id) DO NOTHING;
+   ```
+3. The owner can now sign in at `https://your-domain.com/admin/` with full management capabilities. Any other authenticated user not in `store_owners` will be denied access by database RLS.
 
 ---
 

@@ -28,8 +28,18 @@ const AdminApp = (() => {
   async function init() {
     currentUser = await Database.getCurrentUser();
     if (currentUser) {
-      showDashboardView();
-      await loadDashboardData();
+      const isAuthorized = await Database.checkOwnerAuthorization();
+      if (isAuthorized) {
+        showDashboardView();
+        await loadDashboardData();
+      } else {
+        showLoginView();
+        const errorBox = document.getElementById("login-error");
+        if (errorBox) {
+          errorBox.textContent = "Your account is authenticated, but not authorized as a store owner. Add your user ID to public.store_owners in Supabase.";
+          errorBox.style.display = "block";
+        }
+      }
     } else {
       showLoginView();
     }
@@ -77,6 +87,14 @@ const AdminApp = (() => {
     try {
       const data = await Database.signIn(email, password);
       currentUser = data.user;
+
+      const isAuthorized = await Database.checkOwnerAuthorization();
+      if (!isAuthorized) {
+        await Database.signOut();
+        currentUser = null;
+        throw new Error("Access Denied: Your account is not registered in the 'store_owners' table. Run the SQL step in README to authorize this owner.");
+      }
+
       showDashboardView();
       await loadDashboardData();
       showToast("Welcome back, Store Owner!", "success");

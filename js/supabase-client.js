@@ -1017,6 +1017,36 @@ const Database = (() => {
     return null;
   }
 
+  /**
+   * Check if the currently logged-in user is listed in store_owners
+   */
+  async function checkOwnerAuthorization() {
+    if (isLive()) {
+      try {
+        const { data: userData } = await client.auth.getUser();
+        if (!userData || !userData.user) return false;
+
+        const { data, error } = await client
+          .from("store_owners")
+          .select("user_id")
+          .eq("user_id", userData.user.id)
+          .maybeSingle();
+
+        if (error || !data) {
+          console.warn("User is authenticated but not registered in store_owners table.");
+          return false;
+        }
+        return true;
+      } catch (err) {
+        console.error("Owner authorization check error:", err);
+        return false;
+      }
+    }
+
+    // In local fallback mode
+    return Boolean(localStorage.getItem(LOCAL_STORAGE_SESSION_KEY));
+  }
+
   return {
     init,
     isLive,
@@ -1031,6 +1061,7 @@ const Database = (() => {
     signIn,
     signOut,
     getCurrentUser,
+    checkOwnerAuthorization,
   };
 })();
 

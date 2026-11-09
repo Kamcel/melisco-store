@@ -1,6 +1,6 @@
 -- ============================================================
 -- Melisco Gadgets E-commerce Schema
--- Migration 02: Storage Bucket Configuration & RLS
+-- Migration 02: Storage Bucket Configuration & Owner RLS
 -- ============================================================
 
 -- Create public storage bucket for product images if it does not already exist
@@ -20,7 +20,8 @@ ON CONFLICT (id) DO UPDATE SET
 -- ------------------------------------------------------------
 -- Storage Policies
 --   - Public (anon + authenticated) can view/download images
---   - Only authenticated owners can upload, update or delete images
+--   - ONLY the authorized store owner (via public.is_store_owner())
+--     can upload, update or delete images.
 -- ------------------------------------------------------------
 
 DROP POLICY IF EXISTS "Public can view product images" ON storage.objects;
@@ -35,19 +36,31 @@ CREATE POLICY "Owner can upload product images"
     ON storage.objects
     FOR INSERT
     TO authenticated
-    WITH CHECK (bucket_id = 'product-images');
+    WITH CHECK (
+        bucket_id = 'product-images' AND
+        public.is_store_owner()
+    );
 
 DROP POLICY IF EXISTS "Owner can update product images" ON storage.objects;
 CREATE POLICY "Owner can update product images"
     ON storage.objects
     FOR UPDATE
     TO authenticated
-    USING (bucket_id = 'product-images')
-    WITH CHECK (bucket_id = 'product-images');
+    USING (
+        bucket_id = 'product-images' AND
+        public.is_store_owner()
+    )
+    WITH CHECK (
+        bucket_id = 'product-images' AND
+        public.is_store_owner()
+    );
 
 DROP POLICY IF EXISTS "Owner can delete product images" ON storage.objects;
 CREATE POLICY "Owner can delete product images"
     ON storage.objects
     FOR DELETE
     TO authenticated
-    USING (bucket_id = 'product-images');
+    USING (
+        bucket_id = 'product-images' AND
+        public.is_store_owner()
+    );
