@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>Melisco Gadgets — Owner Dashboard</title>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Base & Admin Stylesheet -->
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/admin.css" />
+</head>
+<body class="admin-body">
+
+<!-- ══════════════════════════════════════════════════════════
+     TOP APP BAR
+══════════════════════════════════════════════════════════ -->
+<header class="admin-header">
+  <div class="admin-header__inner">
+    <a href="../index.html" class="admin-brand" target="_blank" title="View Public Store">
+      <span>Melisco Gadgets</span>
+      <span class="admin-brand__badge">Owner Portal</span>
+    </a>
+    <div class="admin-nav-actions" id="admin-auth-actions">
+      <a href="../index.html" class="admin-btn admin-btn--outline" target="_blank">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        <span>Storefront</span>
+      </a>
+      <button id="logout-btn" class="admin-btn" style="display: none;" onclick="AdminApp.handleLogout()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <span>Log Out</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════════════════════════
+     VIEW 1: OWNER LOGIN (When not authenticated)
+══════════════════════════════════════════════════════════ -->
+<div id="login-view" class="login-view">
+  <div class="login-card">
+    <div class="login-card__icon">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+    </div>
+    <h1 class="login-card__title">Owner Login</h1>
+    <p class="login-card__sub">Sign in with your Melisco Store owner account.</p>
+
+    <form id="login-form" onsubmit="AdminApp.handleLogin(event)">
+      <div class="form-group">
+        <label class="form-label" for="login-email">Owner Email</label>
+        <input class="form-input" type="email" id="login-email" placeholder="owner@melisco.ng" required autocomplete="username" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="login-password">Password</label>
+        <input class="form-input" type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password" />
+        <p class="form-hint">Demo Mode credentials: <code>owner@melisco.ng</code> / <code>Melisco2024!</code></p>
+      </div>
+
+      <button type="submit" id="login-submit-btn" class="btn btn--primary btn--full" style="min-height: 48px; margin-top: 1rem;">
+        Sign In to Dashboard
+      </button>
+
+      <div id="login-error" style="display: none; color: var(--adm-danger); font-size: 0.85rem; margin-top: 1rem; padding: 0.5rem; background: #fee2e2; border-radius: 6px;"></div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     VIEW 2: OWNER DASHBOARD (When authenticated)
+══════════════════════════════════════════════════════════ -->
+<main id="dashboard-view" class="admin-container" style="display: none;">
+
+  <!-- Summary Statistics Grid -->
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <span class="metric-card__label">Published</span>
+      <span class="metric-card__value" id="metric-published">0</span>
+      <span class="metric-card__sub">Active in store</span>
+    </div>
+    <div class="metric-card">
+      <span class="metric-card__label">Total Stock</span>
+      <span class="metric-card__value" id="metric-stock">0</span>
+      <span class="metric-card__sub">Available units</span>
+    </div>
+    <div class="metric-card">
+      <span class="metric-card__label">Sold Out</span>
+      <span class="metric-card__value" id="metric-sold">0</span>
+      <span class="metric-card__sub">Past items</span>
+    </div>
+    <div class="metric-card">
+      <span class="metric-card__label">Drafts</span>
+      <span class="metric-card__value" id="metric-drafts">0</span>
+      <span class="metric-card__sub">Unpublished items</span>
+    </div>
+  </div>
+
+  <!-- Primary Action Bar -->
+  <div class="admin-action-bar">
+    <button class="btn btn--primary" onclick="AdminApp.openAddProductModal()" style="min-height: 48px; padding-inline: 1.5rem;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add New Product
+    </button>
+
+    <div class="admin-search-wrap">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+      </svg>
+      <input type="search" id="admin-search" class="form-input" placeholder="Search gadgets by name, model or brand…" oninput="AdminApp.handleSearch(event)" />
+    </div>
+  </div>
+
+  <!-- Status Filter Tabs -->
+  <div class="status-tabs" role="tablist">
+    <button class="status-tab active" data-status="all" onclick="AdminApp.filterStatus('all')">
+      All Items <span class="count" id="count-all">0</span>
+    </button>
+    <button class="status-tab" data-status="published" onclick="AdminApp.filterStatus('published')">
+      Published <span class="count" id="count-published">0</span>
+    </button>
+    <button class="status-tab" data-status="draft" onclick="AdminApp.filterStatus('draft')">
+      Drafts <span class="count" id="count-draft">0</span>
+    </button>
+    <button class="status-tab" data-status="sold" onclick="AdminApp.filterStatus('sold')">
+      Sold <span class="count" id="count-sold">0</span>
+    </button>
+    <button class="status-tab" data-status="archived" onclick="AdminApp.filterStatus('archived')">
+      Archived <span class="count" id="count-archived">0</span>
+    </button>
+  </div>
+
+  <!-- Product Management List -->
+  <div id="admin-product-list" class="admin-product-list">
+    <div style="text-align: center; padding: 3rem 1rem; color: var(--adm-text-muted);">
+      <div class="spinner"></div>
+      <p style="margin-top: 1rem;">Loading inventory…</p>
+    </div>
+  </div>
+
+</main>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL: ADD / EDIT PRODUCT
+══════════════════════════════════════════════════════════ -->
+<div id="product-form-modal" class="admin-modal-overlay">
+  <div class="admin-modal">
+    
+    <div class="admin-modal__header">
+      <h2 class="admin-modal__title" id="form-modal-title">Add Gadget</h2>
+      <button type="button" class="cart-drawer__close" onclick="AdminApp.closeFormModal()" aria-label="Close dialog">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <form id="product-form" class="admin-modal__body" onsubmit="AdminApp.handleSaveProduct(event)">
+      <input type="hidden" id="form-product-id" />
+
+      <!-- Photo Uploader Strip -->
+      <div class="form-group">
+        <label class="form-label">Photographs (Phone Gallery or Camera)</label>
+        <label class="image-upload-box" for="form-image-files">
+          <div class="image-upload-box__icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+          </div>
+          <div class="image-upload-box__title">Tap to choose photos or take a picture</div>
+          <div class="image-upload-box__sub">Upload one or multiple clear gadget images</div>
+          <input type="file" id="form-image-files" accept="image/*" multiple onchange="AdminApp.handleImageFilesSelect(event)" />
+        </label>
+        
+        <!-- Live Preview Strip -->
+        <div id="form-preview-strip" class="preview-strip"></div>
+      </div>
+
+      <!-- Basic Info -->
+      <div class="form-group">
+        <label class="form-label" for="form-name">Product Name *</label>
+        <input class="form-input" id="form-name" placeholder="e.g. Apple iPhone 11 – 128GB (Purple)" required />
+      </div>
+
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label class="form-label" for="form-brand">Brand *</label>
+          <input class="form-input" id="form-brand" placeholder="e.g. Apple, Samsung, HP" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="form-model">Model</label>
+          <input class="form-input" id="form-model" placeholder="e.g. iPhone 11, S24 FE" />
+        </div>
+      </div>
+
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label class="form-label" for="form-category">Category *</label>
+          <select class="form-select" id="form-category" required onchange="AdminApp.handleCategoryChange()">
+            <option value="smartphones">Smartphones</option>
+            <option value="laptops">Laptops</option>
+            <option value="tablets">Tablets</option>
+            <option value="audio">Audio & Sound</option>
+            <option value="wearables">Smartwatches</option>
+            <option value="accessories">Accessories</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="form-subcategory">Subcategory</label>
+          <select class="form-select" id="form-subcategory">
+            <!-- Populated dynamically based on category -->
+          </select>
+        </div>
+      </div>
+
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label class="form-label" for="form-price">Price in Naira (₦) *</label>
+          <input class="form-input" type="number" id="form-price" min="0" step="500" placeholder="e.g. 260000" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="form-condition">Condition *</label>
+          <select class="form-select" id="form-condition" required onchange="AdminApp.handleConditionOrInventoryChange()">
+            <option value="Brand New">Brand New</option>
+            <option value="Fairly Used">Fairly Used</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label class="form-label" for="form-model-age">Model Age Label</label>
+          <select class="form-select" id="form-model-age">
+            <option value="Current Model">Current Model</option>
+            <option value="Older Model">Older Model (e.g. iPhone 11, S10)</option>
+          </select>
+          <p class="form-hint">Model age is independent from physical condition.</p>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="form-inventory-type">Inventory Tracking Type *</label>
+          <select class="form-select" id="form-inventory-type" required onchange="AdminApp.handleConditionOrInventoryChange()">
+            <option value="quantity">Product with Quantity (Accessories / Brand New)</option>
+            <option value="individual">Individual Unique Device (Used Phones, Laptops)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Quantity Field (Only for Quantity-based products) -->
+      <div class="form-group" id="field-quantity-wrap">
+        <label class="form-label" for="form-stock-quantity">Available Quantity in Stock</label>
+        <input class="form-input" type="number" id="form-stock-quantity" min="0" value="1" />
+        <p class="form-hint">Total number of identical units available for sale.</p>
+      </div>
+
+      <!-- Conditional Used Device Diagnostics Card (Shows for Fairly Used or Individual Device) -->
+      <div class="conditional-card" id="field-used-diagnostics">
+        <div class="conditional-card__title">
+          <span>📱</span> Used Device Condition & Diagnostics Report
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="form-battery-health">Battery Health (%)</label>
+            <input class="form-input" type="number" id="form-battery-health" min="0" max="100" placeholder="e.g. 86" />
+            <p class="form-hint">Leave blank if not applicable (e.g. laptops, accessories)</p>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="form-cosmetic">Cosmetic Condition</label>
+            <input class="form-input" id="form-cosmetic" placeholder="e.g. Clean 9/10, minor pocket wear on edge" />
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="form-faults">Defects or Faults (if any)</label>
+            <input class="form-input" id="form-faults" placeholder="e.g. None (100% Functional) or Face ID inactive" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="form-accessories">Included Accessories</label>
+            <input class="form-input" id="form-accessories" placeholder="e.g. Original fast charger & protective case" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Specifications (Simple Key-Value Textarea) -->
+      <div class="form-group">
+        <label class="form-label" for="form-specs-raw">Specifications (one per line, e.g. Storage: 128 GB)</label>
+        <textarea class="form-textarea" id="form-specs-raw" rows="3" placeholder="Storage: 128 GB&#10;RAM: 4 GB&#10;Display: 6.1-inch Liquid Retina&#10;Cameras: 12 MP dual"></textarea>
+      </div>
+
+      <!-- Description -->
+      <div class="form-group">
+        <label class="form-label" for="form-description">Product Description</label>
+        <textarea class="form-textarea" id="form-description" rows="3" placeholder="Describe device warranty, network unlocking, history, and key selling points…"></textarea>
+      </div>
+
+      <!-- Featured Option -->
+      <div class="form-group">
+        <label class="form-checkbox-label">
+          <input type="checkbox" id="form-featured" />
+          <span>Feature on Storefront Homepage</span>
+        </label>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="admin-modal__footer">
+        <button type="button" class="btn btn--outline" onclick="AdminApp.submitProductWithStatus('draft')">
+          Save as Draft
+        </button>
+        <button type="submit" class="btn btn--primary" id="form-save-btn">
+          Publish Product
+        </button>
+      </div>
+    </form>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     CONFIRMATION MODAL (Destructive Actions)
+══════════════════════════════════════════════════════════ -->
+<div id="confirm-modal" class="admin-modal-overlay">
+  <div class="admin-modal" style="max-width: 440px;">
+    <div class="admin-modal__header">
+      <h3 class="admin-modal__title" id="confirm-title">Confirm Action</h3>
+    </div>
+    <div class="admin-modal__body" id="confirm-message" style="font-size: 0.95rem; color: var(--adm-text-muted);">
+      Are you sure you want to proceed?
+    </div>
+    <div class="admin-modal__footer">
+      <button class="btn btn--outline" onclick="AdminApp.closeConfirmModal()">Cancel</button>
+      <button class="btn btn--danger" id="confirm-action-btn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     TOAST CONTAINER
+══════════════════════════════════════════════════════════ -->
+<div id="admin-toast" class="admin-toast"></div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SCRIPTS
+══════════════════════════════════════════════════════════ -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="../js/config.js"></script>
+<script src="../js/supabase-client.js"></script>
+<script src="admin.js"></script>
+
+</body>
+</html>
