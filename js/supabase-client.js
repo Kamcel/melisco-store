@@ -550,6 +550,39 @@ const Database = (() => {
     return isConnected && client !== null;
   }
 
+  function isLocalDemoEnabled() {
+    return SUPABASE_CONFIG.allowLocalDemoMode === true;
+  }
+
+  function requireLiveBackend(action) {
+    if (!isLive()) {
+      throw new Error(`Supabase is not configured. Connect the project before ${action}.`);
+    }
+  }
+
+  // Convert this bucket's public URLs back to object paths for safe Storage cleanup.
+  function getStorageObjectPaths(urls = []) {
+    const marker = `/storage/v1/object/public/${SUPABASE_CONFIG.storageBucket}/`;
+    return urls.flatMap((value) => {
+      if (typeof value !== "string" || !value.startsWith("http")) return [];
+      try {
+        const pathname = new URL(value).pathname;
+        const markerIndex = pathname.indexOf(marker);
+        if (markerIndex === -1) return [];
+        return [decodeURIComponent(pathname.slice(markerIndex + marker.length))];
+      } catch {
+        return [];
+      }
+    });
+  }
+
+  async function removeStorageImages(urls = []) {
+    const paths = getStorageObjectPaths(urls);
+    if (!isLive() || paths.length === 0) return;
+    const { error } = await client.storage.from(SUPABASE_CONFIG.storageBucket).remove(paths);
+    if (error) console.warn("Could not remove one or more old product images from Storage:", error);
+  }
+
   // ── Local Adapter Helpers ───────────────────────────────────────────────────
   function getLocalProducts() {
     try {
@@ -588,8 +621,8 @@ const Database = (() => {
         return data.map((item) => {
           const imgList = item.images && item.images.length > 0
             ? [...item.images]
-                .sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0) || a.display_order - b.display_order)
-                .map((img) => img.url)
+              .sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0) || a.display_order - b.display_order)
+              .map((img) => img.url)
             : [PLACEHOLDER_IMAGE];
           return {
             ...item,
@@ -598,11 +631,14 @@ const Database = (() => {
           };
         });
       } catch (err) {
-        console.error("Error fetching published products from Supabase, using local fallback:", err);
+        console.error("Error fetching published products from Supabase:", err);
+        throw err;
       }
     }
 
-    // Fallback: local products with status === 'published'
+    if (!isLocalDemoEnabled()) return [];
+
+    // Optional local-only preview mode; disabled by default.
     const list = getLocalProducts().filter((p) => p.status === "published");
     return list.map((p) => ({
       ...p,
@@ -629,8 +665,8 @@ const Database = (() => {
         if (data) {
           const imgList = data.images && data.images.length > 0
             ? [...data.images]
-                .sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0) || a.display_order - b.display_order)
-                .map((img) => img.url)
+              .sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0) || a.display_order - b.display_order)
+              .map((img) => img.url)
             : [PLACEHOLDER_IMAGE];
           return {
             ...data,
@@ -639,9 +675,12 @@ const Database = (() => {
           };
         }
       } catch (err) {
-        console.warn("Error fetching single product from Supabase, checking local:", err);
+        console.error("Error fetching single product from Supabase:", err);
+        throw err;
       }
     }
+
+    if (!isLocalDemoEnabled()) return null;
 
     const item = getLocalProducts().find((p) => String(p.id) === String(id));
     if (item) {
@@ -673,8 +712,8 @@ const Database = (() => {
         return data.map((item) => {
           const imgList = item.images && item.images.length > 0
             ? [...item.images]
-                .sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0) || a.display_order - b.display_order)
-                .map((img) => img.url)
+              .sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0) || a.display_order - b.display_order)
+              .map((img) => img.url)
             : [PLACEHOLDER_IMAGE];
           return {
             ...item,
@@ -683,8 +722,13 @@ const Database = (() => {
           };
         });
       } catch (err) {
-        console.error("Admin fetch error from Supabase, falling back to local:", err);
+        console.error("Admin fetch error from Supabase:", err);
+        throw err;
       }
+    }
+
+    if (!isLocalDemoEnabled()) {
+      throw new Error("Supabase is not configured. The owner dashboard cannot load inventory in local demo mode.");
     }
 
     return getLocalProducts().map((p) => ({
@@ -738,7 +782,12 @@ const Database = (() => {
             is_primary: index === 0,
             display_order: index + 1,
           }));
-          await client.from("product_images").insert(imageRecords);
+          const { error: imageErr } = await client.from("product_images").insert(imageRecords);
+          if (imageErr) {
+            await client.from("products").delete().eq("id", insertedProduct.id);
+            await removeStorageImages(uploadedImageUrls);
+            throw imageErr;
+          }
         }
 
         return { success: true, product: insertedProduct };
@@ -748,7 +797,9 @@ const Database = (() => {
       }
     }
 
-    // Local Storage fallback
+    if (!isLocalDemoEnabled()) requireLiveBackend("creating products");
+
+    // Local-only preview adapter
     const products = getLocalProducts();
     const localItem = {
       id: newId,
@@ -799,19 +850,43 @@ const Database = (() => {
 
         if (prodErr) throw prodErr;
 
-        // If new images provided, sync images table
+        // If new images were supplied, synchronize the image rows safely.
         if (updatedImageUrls && Array.isArray(updatedImageUrls)) {
-          // Delete old images and reinsert
-          await client.from("product_images").delete().eq("product_id", id);
-          if (updatedImageUrls.length > 0) {
-            const imageRecords = updatedImageUrls.map((url, index) => ({
-              product_id: id,
-              url,
-              is_primary: index === 0,
-              display_order: index + 1,
-            }));
-            await client.from("product_images").insert(imageRecords);
+          const { data: oldImages, error: readImagesErr } = await client
+            .from("product_images")
+            .select("url, is_primary, display_order")
+            .eq("product_id", id);
+          if (readImagesErr) throw readImagesErr;
+
+          const { error: deleteImagesErr } = await client
+            .from("product_images")
+            .delete()
+            .eq("product_id", id);
+          if (deleteImagesErr) throw deleteImagesErr;
+
+          const imageRecords = updatedImageUrls.map((url, index) => ({
+            product_id: id,
+            url,
+            is_primary: index === 0,
+            display_order: index + 1,
+          }));
+
+          if (imageRecords.length > 0) {
+            const { error: insertImagesErr } = await client.from("product_images").insert(imageRecords);
+            if (insertImagesErr) {
+              // Restore the previous image rows if the replacement fails.
+              if (oldImages && oldImages.length > 0) {
+                await client.from("product_images").insert(
+                  oldImages.map((img) => ({ ...img, product_id: id }))
+                );
+              }
+              throw insertImagesErr;
+            }
           }
+
+          const retained = new Set(updatedImageUrls);
+          const removedUrls = (oldImages || []).map((img) => img.url).filter((url) => !retained.has(url));
+          await removeStorageImages(removedUrls);
         }
 
         return { success: true };
@@ -821,7 +896,9 @@ const Database = (() => {
       }
     }
 
-    // Local Storage fallback
+    if (!isLocalDemoEnabled()) requireLiveBackend("updating products");
+
+    // Local-only preview adapter
     const products = getLocalProducts();
     const idx = products.findIndex((p) => String(p.id) === String(id));
     if (idx !== -1) {
@@ -849,7 +926,7 @@ const Database = (() => {
     if (isLive()) {
       try {
         const payload = { status: newStatus };
-        // If an individual device is marked sold, update stock_quantity to 0
+        // Migration 04 requires zero stock for every product marked sold.
         if (newStatus === "sold") {
           payload.stock_quantity = 0;
         } else if (newStatus === "published") {
@@ -867,12 +944,14 @@ const Database = (() => {
       }
     }
 
-    // Local fallback
+    if (!isLocalDemoEnabled()) requireLiveBackend("changing product status");
+
+    // Local-only preview adapter
     const products = getLocalProducts();
     const item = products.find((p) => String(p.id) === String(id));
     if (item) {
       item.status = newStatus;
-      if (newStatus === "sold" && item.inventory_type === "individual") {
+      if (newStatus === "sold") {
         item.stock_quantity = 0;
       } else if (newStatus === "published" && item.inventory_type === "individual" && item.stock_quantity === 0) {
         item.stock_quantity = 1;
@@ -889,8 +968,15 @@ const Database = (() => {
   async function deleteProduct(id) {
     if (isLive()) {
       try {
+        const { data: images, error: imagesErr } = await client
+          .from("product_images")
+          .select("url")
+          .eq("product_id", id);
+        if (imagesErr) throw imagesErr;
+
         const { error } = await client.from("products").delete().eq("id", id);
         if (error) throw error;
+        await removeStorageImages((images || []).map((img) => img.url));
         return { success: true };
       } catch (err) {
         console.error("Failed to delete product in Supabase:", err);
@@ -898,7 +984,9 @@ const Database = (() => {
       }
     }
 
-    // Local fallback
+    if (!isLocalDemoEnabled()) requireLiveBackend("deleting products");
+
+    // Local-only preview adapter
     let products = getLocalProducts();
     products = products.filter((p) => String(p.id) !== String(id));
     setLocalProducts(products);
@@ -935,11 +1023,14 @@ const Database = (() => {
 
         return publicUrlData.publicUrl;
       } catch (err) {
-        console.error("Supabase Storage upload failed, falling back to local base64:", err);
+        console.error("Supabase Storage upload failed:", err);
+        throw new Error(`Image upload failed: ${err.message || "Supabase Storage rejected the file."}`);
       }
     }
 
-    // Fallback: convert file to local Base64 Data URL so the owner can preview & test immediately
+    if (!isLocalDemoEnabled()) requireLiveBackend("uploading product images");
+
+    // Local-only preview mode: convert to Data URL only when explicitly enabled.
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result);
@@ -963,21 +1054,7 @@ const Database = (() => {
       return data;
     }
 
-    // Demo/offline mode authentication:
-    // If not connected to live Supabase, allows demo credentials or owner passphrase
-    if (
-      (email === "owner@melisco.ng" && password === "Melisco2024!") ||
-      (email === "admin" && password === "admin") ||
-      password.length >= 6
-    ) {
-      const demoSession = {
-        user: { id: "demo-owner-id", email: email || "owner@melisco.ng" },
-        expires_at: Date.now() + 86400000,
-      };
-      localStorage.setItem(LOCAL_STORAGE_SESSION_KEY, JSON.stringify(demoSession));
-      return { session: demoSession, user: demoSession.user };
-    }
-    throw new Error("Invalid credentials. In demo mode, use email: owner@melisco.ng, password: Melisco2024!");
+    throw new Error("Owner login is unavailable until this website is connected to Supabase. Configure the project URL and public key first.");
   }
 
   /**
@@ -1003,17 +1080,8 @@ const Database = (() => {
       }
     }
 
-    // Check local demo session
-    try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_SESSION_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.expires_at > Date.now()) {
-          return parsed.user;
-        }
-        localStorage.removeItem(LOCAL_STORAGE_SESSION_KEY);
-      }
-    } catch {}
+    // Never treat a browser-local demo session as an authenticated owner.
+    localStorage.removeItem(LOCAL_STORAGE_SESSION_KEY);
     return null;
   }
 
@@ -1043,8 +1111,8 @@ const Database = (() => {
       }
     }
 
-    // In local fallback mode
-    return Boolean(localStorage.getItem(LOCAL_STORAGE_SESSION_KEY));
+    // A local browser flag is never sufficient to grant owner privileges.
+    return false;
   }
 
   return {

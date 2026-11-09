@@ -39,7 +39,7 @@ melisco-store/
 │
 ├── js/                          # Frontend application logic
 │   ├── config.js                # Central store & Supabase configuration
-│   ├── supabase-client.js       # Supabase client + offline fallback adapter
+│   ├── supabase-client.js       # Supabase client + optional local preview adapter
 │   ├── cart.js                  # Cart logic, inventory rules & WhatsApp order generator
 │   └── main.js                  # Storefront catalogue, filters & multi-image modal
 │
@@ -79,7 +79,7 @@ python -m http.server 8080
 Because all demonstration images and scripts use relative paths, you can open `index.html` directly in Google Chrome, Microsoft Edge, or Firefox.
 
 > **Offline/Demo Mode Notice:**
-> The project includes a built-in fallback data adapter in `js/supabase-client.js`. If Supabase credentials have not been configured yet, the store runs immediately with pre-loaded local demonstration inventory. You can browse, test the cart, test WhatsApp checkout, and sign into the admin portal (`owner@melisco.ng` / `Melisco2024!`) straight out of the box!
+> The project includes an optional local demonstration data adapter. It is disabled by default (`allowLocalDemoMode: false`). Do not enable local demo mode on a deployed store. The owner dashboard requires a real Supabase Auth session and an authorized row in `public.store_owners`.
 
 ---
 

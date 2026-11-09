@@ -14,26 +14,26 @@ const STORE_CONFIG = {
   name: "Melisco Gadgets",
   tagline: "Quality New & Fairly Used Gadgets in Nigeria",
   description: "Your trusted destination for thoroughly tested smartphones, high-performance laptops, premium audio, and authentic electronics.",
-  
+
   // WhatsApp phone number in international format without '+' or leading '0'
   // Example for Nigeria (+234): '2348012345678'
-  whatsappNumber: "2348000000000",
-  
+  whatsappNumber: "2347085835844",
+
   email: "hello@meliscogadgets.ng",
-  address: "Computer Village, Ikeja, Lagos, Nigeria",
-  
+  address: "Shop 15B,Second Floor Our Lord's Plaza, Onitsha, Anambra State, Nigeria",
+
   // Social media profiles (set to "#" or custom URL)
   instagram: "https://instagram.com/meliscogadgets",
   facebook: "https://facebook.com/meliscogadgets",
   twitter: "https://twitter.com/meliscogadgets",
-  
+
   // Currency formatting
   currency: {
     symbol: "₦",
     code: "NGN",
     locale: "en-NG",
   },
-  
+
   // Free delivery or delivery terms notice
   deliveryNote: "Nationwide delivery available. Delivery fee confirmed via WhatsApp.",
 };
@@ -50,6 +50,8 @@ const SUPABASE_CONFIG = {
   url: "", // e.g. "https://xyzcompany.supabase.co"
   anonKey: "", // e.g. "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
   storageBucket: "product-images",
+  // Keep false for any deployed/live store. Enable only for local UI previews.
+  allowLocalDemoMode: false,
 };
 
 // ─────────────────────────────────────────────
@@ -154,7 +156,7 @@ function isConfiguredWhatsApp(number) {
   if (!number) return false;
   const cleaned = String(number).replace(/[^0-9]/g, "");
   // Must be at least 10 digits and not the placeholder
-  return cleaned.length >= 10 && cleaned !== "2348000000000";
+  return cleaned.length >= 10 && cleaned !== "2347085835844";
 }
 
 /**

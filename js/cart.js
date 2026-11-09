@@ -198,16 +198,15 @@ const Cart = (() => {
                 ${conditionBadge}
                 <span class="cart-item__price">${formatPrice(product.price)}</span>
               </div>
-              ${
-                isIndividual
-                  ? `<div class="cart-item__individual-note">Single device listing (Qty: 1)</div>`
-                  : `
+              ${isIndividual
+            ? `<div class="cart-item__individual-note">Single device listing (Qty: 1)</div>`
+            : `
                   <div class="qty-control" aria-label="Quantity control">
                     <button class="qty-btn" onclick="Cart.setQuantity('${product.id}', ${quantity - 1})" aria-label="Decrease quantity">−</button>
                     <span class="qty-value">${quantity}</span>
                     <button class="qty-btn" onclick="Cart.setQuantity('${product.id}', ${quantity + 1})" aria-label="Increase quantity">+</button>
                   </div>`
-              }
+          }
             </div>
             <div class="cart-item__right">
               <button class="cart-item__remove" onclick="Cart.removeItem('${product.id}')" aria-label="Remove item" title="Remove item">
