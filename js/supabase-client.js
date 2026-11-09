@@ -852,6 +852,11 @@ const Database = (() => {
         // If an individual device is marked sold, update stock_quantity to 0
         if (newStatus === "sold") {
           payload.stock_quantity = 0;
+        } else if (newStatus === "published") {
+          const { data: cur } = await client.from("products").select("inventory_type, stock_quantity").eq("id", id).single();
+          if (cur && cur.inventory_type === "individual" && cur.stock_quantity === 0) {
+            payload.stock_quantity = 1;
+          }
         }
         const { error } = await client.from("products").update(payload).eq("id", id);
         if (error) throw error;
@@ -869,6 +874,8 @@ const Database = (() => {
       item.status = newStatus;
       if (newStatus === "sold" && item.inventory_type === "individual") {
         item.stock_quantity = 0;
+      } else if (newStatus === "published" && item.inventory_type === "individual" && item.stock_quantity === 0) {
+        item.stock_quantity = 1;
       }
       setLocalProducts(products);
       return { success: true };

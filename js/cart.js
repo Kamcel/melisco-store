@@ -265,17 +265,18 @@ const Cart = (() => {
       // 1. Fetch latest product info to ensure prices & availability are accurate
       const validationIssues = [];
       const confirmedItems = [];
+      const updatedCartItems = [];
 
       for (const item of items) {
         const fresh = await Database.getProductById(item.product.id);
         if (!fresh || fresh.status !== "published") {
-          validationIssues.push(`"${item.product.name}" is no longer available.`);
+          validationIssues.push(`"${item.product.name}" is no longer available and was removed from your cart.`);
           continue;
         }
 
         // Validate stock
         if (fresh.stock_quantity <= 0) {
-          validationIssues.push(`"${fresh.name}" has just sold out.`);
+          validationIssues.push(`"${fresh.name}" has just sold out and was removed from your cart.`);
           continue;
         }
 
@@ -284,7 +285,11 @@ const Cart = (() => {
           confirmedQty = 1;
         } else if (confirmedQty > fresh.stock_quantity) {
           confirmedQty = fresh.stock_quantity;
-          validationIssues.push(`"${fresh.name}" quantity adjusted to maximum available stock (${fresh.stock_quantity}).`);
+          validationIssues.push(`"${fresh.name}" quantity was adjusted to maximum available stock (${fresh.stock_quantity}).`);
+        }
+
+        if (Number(fresh.price) !== Number(item.product.price)) {
+          validationIssues.push(`"${fresh.name}" price updated from ${formatPrice(item.product.price)} to ${formatPrice(fresh.price)}.`);
         }
 
         confirmedItems.push({
@@ -294,17 +299,30 @@ const Cart = (() => {
           subtotal: Number(fresh.price) * confirmedQty,
           condition: fresh.condition,
         });
+
+        updatedCartItems.push({
+          product: {
+            ...item.product,
+            price: Number(fresh.price),
+            stock_quantity: Number(fresh.stock_quantity),
+            status: fresh.status,
+          },
+          quantity: confirmedQty,
+        });
       }
 
       if (validationIssues.length > 0) {
-        alert("Cart Update Notice:\n\n" + validationIssues.join("\n"));
-        // Synchronize cart with validated state
+        items = updatedCartItems;
         save();
         renderCart();
         updateBadge();
+        alert("Cart Update Notice:\n\n" + validationIssues.join("\n"));
         if (confirmedItems.length === 0) {
           return;
         }
+      } else {
+        items = updatedCartItems;
+        save();
       }
 
       // Calculate fresh grand total

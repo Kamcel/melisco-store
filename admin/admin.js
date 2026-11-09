@@ -193,7 +193,8 @@ const AdminApp = (() => {
     const isPublished = p.status === "published";
 
     // Primary image
-    const imgUrl = (p.images && p.images[0]) || p.image || "../assets/images/placeholder.svg";
+    const rawImg = (p.images && p.images[0]) || p.image || "";
+    const imgUrl = resolveProductImage(rawImg);
 
     // Status pill
     let statusPillClass = "badge--brand-new";
@@ -535,7 +536,7 @@ const AdminApp = (() => {
     strip.innerHTML = currentProductImageUrls
       .map((url, idx) => `
         <div class="preview-item">
-          <img src="${url}" alt="Gadget preview ${idx + 1}" />
+          <img src="${resolveProductImage(url)}" alt="Gadget preview ${idx + 1}" />
           ${idx === 0 ? `<div class="preview-item__primary-badge">PRIMARY</div>` : ""}
           <button type="button" class="preview-item__remove" onclick="AdminApp.removePreviewImage(${idx})" title="Remove photo">×</button>
         </div>

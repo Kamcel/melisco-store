@@ -163,15 +163,26 @@ function isConfiguredWhatsApp(number) {
 const PLACEHOLDER_IMAGE = "assets/images/placeholder.svg";
 
 /**
- * Safe image URL helper (resolves relative vs Supabase storage URL)
+ * Safe image URL helper (resolves relative vs Supabase storage URL across root and /admin/)
  */
 function resolveProductImage(url) {
+  const isInAdmin = typeof window !== "undefined" && window.location.pathname.includes("/admin");
+  const fallback = isInAdmin ? "../assets/images/placeholder.svg" : "assets/images/placeholder.svg";
+
   if (!url || typeof url !== "string" || url.trim() === "") {
-    return PLACEHOLDER_IMAGE;
+    return fallback;
   }
-  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("/") || url.startsWith("assets/")) {
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) {
     return url;
   }
-  // If stored in assets relative path
+  if (url.startsWith("/")) {
+    return url;
+  }
+  if (isInAdmin) {
+    if (url.startsWith("../")) return url;
+    if (url.startsWith("assets/")) return "../" + url;
+  } else {
+    if (url.startsWith("../assets/")) return url.replace("../assets/", "assets/");
+  }
   return url;
 }
