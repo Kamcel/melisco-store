@@ -18,7 +18,7 @@ const AdminApp = (() => {
   let allAdminProducts = [];
   let currentStatusFilter = "all";
   let currentSearchQuery = "";
-  
+
   // Staged image files & URLs for current modal
   let stagedImageFiles = []; // Array of File objects
   let currentProductImageUrls = []; // Array of existing URLs or Data URLs
@@ -278,31 +278,28 @@ const AdminApp = (() => {
           <!-- Quick Actions Bar -->
           <div class="admin-product-card__actions">
             <!-- Mark as Sold (for individual device) or Out of Stock (for quantity) -->
-            ${
-              isPublished && isIndividual
-                ? `<button class="admin-btn admin-btn--danger" onclick="AdminApp.quickStatusChange('${p.id}', 'sold')">
+            ${isPublished && isIndividual
+        ? `<button class="admin-btn admin-btn--danger" onclick="AdminApp.quickStatusChange('${p.id}', 'sold')">
                     Mark as Sold
                    </button>`
-                : ""
-            }
-            ${
-              isPublished && !isIndividual && p.stock_quantity > 0
-                ? `<button class="admin-btn admin-btn--danger" onclick="AdminApp.quickSetStock('${p.id}', 0)">
+        : ""
+      }
+            ${isPublished && !isIndividual && p.stock_quantity > 0
+        ? `<button class="admin-btn admin-btn--danger" onclick="AdminApp.quickSetStock('${p.id}', 0)">
                     Mark Out of Stock
                    </button>`
-                : ""
-            }
+        : ""
+      }
 
             <!-- Publish / Unpublish -->
-            ${
-              isDraft || isSold || isArchived
-                ? `<button class="admin-btn admin-btn--success" onclick="AdminApp.quickStatusChange('${p.id}', 'published')">
+            ${isDraft || isSold || isArchived
+        ? `<button class="admin-btn admin-btn--success" onclick="AdminApp.quickStatusChange('${p.id}', 'published')">
                     Publish
                    </button>`
-                : `<button class="admin-btn" onclick="AdminApp.quickStatusChange('${p.id}', 'draft')">
+        : `<button class="admin-btn" onclick="AdminApp.quickStatusChange('${p.id}', 'draft')">
                     Unpublish
                    </button>`
-            }
+      }
 
             <!-- Edit Details -->
             <button class="admin-btn admin-btn--primary" onclick="AdminApp.openEditProductModal('${p.id}')">
@@ -311,13 +308,12 @@ const AdminApp = (() => {
             </button>
 
             <!-- Archive -->
-            ${
-              !isArchived
-                ? `<button class="admin-btn" onclick="AdminApp.quickStatusChange('${p.id}', 'archived')" title="Archive">
+            ${!isArchived
+        ? `<button class="admin-btn" onclick="AdminApp.quickStatusChange('${p.id}', 'archived')" title="Archive">
                     Archive
                    </button>`
-                : ""
-            }
+        : ""
+      }
 
             <!-- Delete with confirmation -->
             <button class="admin-btn admin-btn--danger" onclick="AdminApp.promptDelete('${p.id}', '${p.name.replace(/'/g, "\\'")}')">
@@ -418,7 +414,7 @@ const AdminApp = (() => {
     document.getElementById("form-brand").value = prod.brand || "";
     document.getElementById("form-model").value = prod.model || "";
     document.getElementById("form-category").value = prod.category || "smartphones";
-    
+
     handleCategoryChange();
     document.getElementById("form-subcategory").value = prod.subcategory || "";
 
@@ -504,6 +500,7 @@ const AdminApp = (() => {
 
   // ── Image Handling in Form ────────────────────────────────────────────────
   function handleImageFilesSelect(e) {
+    alert("Image selection handler is working!");
     const files = Array.from(e.target.files);
     if (!files || files.length === 0) return;
 
