@@ -22,6 +22,7 @@ const AdminApp = (() => {
   // Staged image files & URLs for current modal
   let stagedImageFiles = []; // Array of File objects
   let currentProductImageUrls = []; // Array of existing URLs or Data URLs
+  let pendingImageSelection = Promise.resolve();
   let forcedStatusToSave = null;
 
   // ── Initialization ────────────────────────────────────────────────────────
@@ -499,43 +500,103 @@ const AdminApp = (() => {
   }
 
   // ── Image Handling in Form ────────────────────────────────────────────────
+
+
+  // ── Image Handling in Form ────────────────────────────────────────────────
+
   function handleImageFilesSelect(e) {
-    alert("Image selection handler is working!");
-    const files = Array.from(e.target.files);
-    if (!files || files.length === 0) return;
+    const input = e?.target;
+    const files = Array.from(input?.files || []);
 
-    files.forEach((file) => {
-      stagedImageFiles.push(file);
+    if (!files.length) return;
 
-      // Local preview reader
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        currentProductImageUrls.push(event.target.result);
+    input.value = "";
+
+    // Queue selections so multiple selections cannot overwrite one another.
+    pendingImageSelection = pendingImageSelection.then(async () => {
+      const results = await Promise.all(
+        files.map((file) => {
+          return new Promise((resolve) => {
+            if (!file.type.startsWith("image/")) {
+              resolve({
+                success: false,
+                message: `${file.name} is not a supported image file.`,
+              });
+              return;
+            }
+
+            const reader = new FileReader();
+
+            reader.onload = () => {
+              resolve({
+                success: true,
+                file,
+                previewUrl: reader.result,
+              });
+            };
+
+            reader.onerror = () => {
+              resolve({
+                success: false,
+                message: `Could not read ${file.name}. Try another image.`,
+              });
+            };
+
+            reader.readAsDataURL(file);
+          });
+        })
+      );
+
+      let addedCount = 0;
+
+      results.forEach((result) => {
+        if (!result.success) {
+          showToast(result.message, "error");
+          return;
+        }
+
+        stagedImageFiles.push(result.file);
+        currentProductImageUrls.push(result.previewUrl);
+        addedCount++;
+      });
+
+      if (addedCount > 0) {
         renderPreviewStrip();
-      };
-      reader.readAsDataURL(file);
+
+        showToast(
+          `${addedCount} image${addedCount === 1 ? "" : "s"} added successfully.`,
+          "success"
+        );
+      }
     });
 
-    e.target.value = ""; // Reset file input so same file can be re-added if desired
+    return pendingImageSelection;
   }
 
   function removePreviewImage(index) {
-    currentProductImageUrls.splice(index, 1);
-    if (index < stagedImageFiles.length) {
-      stagedImageFiles.splice(index, 1);
+    const removedUrl = currentProductImageUrls[index];
+
+    if (!removedUrl) return;
+
+    if (removedUrl.startsWith("data:")) {
+      const stagedIndex = currentProductImageUrls
+        .slice(0, index)
+        .filter((url) => url.startsWith("data:"))
+        .length;
+
+      stagedImageFiles.splice(stagedIndex, 1);
     }
+
+    currentProductImageUrls.splice(index, 1);
     renderPreviewStrip();
   }
 
   function setAsPrimaryImage(index) {
-    if (index === 0) return;
+    if (index <= 0 || index >= currentProductImageUrls.length) return;
+
     const [url] = currentProductImageUrls.splice(index, 1);
     currentProductImageUrls.unshift(url);
 
-    if (index < stagedImageFiles.length) {
-      const [file] = stagedImageFiles.splice(index, 1);
-      stagedImageFiles.unshift(file);
-    }
     renderPreviewStrip();
   }
 
@@ -544,24 +605,42 @@ const AdminApp = (() => {
     if (!strip) return;
 
     if (currentProductImageUrls.length === 0) {
-      strip.innerHTML = `<span style="font-size: 0.75rem; color: var(--adm-text-muted);">No photographs uploaded yet. Tap above to add photos.</span>`;
+      strip.innerHTML = `
+        <span style="font-size: 0.75rem; color: var(--adm-text-muted);">
+          No photographs uploaded yet. Tap above to add photos.
+        </span>`;
       return;
     }
 
     strip.innerHTML = currentProductImageUrls
       .map((url, idx) => `
         <div class="preview-item">
-          <img src="${resolveProductImage(url)}" alt="Gadget preview ${idx + 1}" />
-          ${idx === 0 ? `<div class="preview-item__primary-badge">PRIMARY</div>` : ""}
-          <button type="button" class="preview-item__remove" onclick="AdminApp.removePreviewImage(${idx})" title="Remove photo">×</button>
+          <img
+            src="${resolveProductImage(url)}"
+            alt="Gadget preview ${idx + 1}"
+          />
+
+          ${idx === 0
+          ? `<div class="preview-item__primary-badge">PRIMARY</div>`
+          : ""
+        }
+
+          <button
+            type="button"
+            class="preview-item__remove"
+            onclick="AdminApp.removePreviewImage(${idx})"
+            title="Remove photo"
+          >×</button>
         </div>
       `)
       .join("");
   }
 
   // ── Form Save Handler ─────────────────────────────────────────────────────
+
   function submitProductWithStatus(status) {
     forcedStatusToSave = status;
+
     const form = document.getElementById("product-form");
     if (form) form.requestSubmit();
   }
@@ -570,12 +649,16 @@ const AdminApp = (() => {
     e.preventDefault();
 
     const saveBtn = document.getElementById("form-save-btn");
+
     if (saveBtn) {
       saveBtn.disabled = true;
-      saveBtn.textContent = "Saving Gadget…";
+      saveBtn.textContent = "Preparing images…";
     }
 
     try {
+      // Wait until every selected image has finished reading.
+      await pendingImageSelection;
+
       const editId = document.getElementById("form-product-id").value;
       const name = document.getElementById("form-name").value.trim();
       const brand = document.getElementById("form-brand").value.trim();
@@ -586,44 +669,86 @@ const AdminApp = (() => {
       const condition = document.getElementById("form-condition").value;
       const model_age = document.getElementById("form-model-age").value;
       const inventory_type = document.getElementById("form-inventory-type").value;
-      let stock_quantity = Number(document.getElementById("form-stock-quantity").value || 1);
-      if (inventory_type === "individual") stock_quantity = 1;
 
-      const battery_health = document.getElementById("form-battery-health").value;
-      const cosmetic_condition = document.getElementById("form-cosmetic").value.trim();
-      const faults = document.getElementById("form-faults").value.trim();
-      const accessories_included = document.getElementById("form-accessories").value.trim();
+      let stock_quantity = Number(
+        document.getElementById("form-stock-quantity").value || 1
+      );
 
-      const description = document.getElementById("form-description").value.trim();
-      const featured = document.getElementById("form-featured").checked;
+      if (inventory_type === "individual") {
+        stock_quantity = 1;
+      }
+
+      const battery_health =
+        document.getElementById("form-battery-health").value;
+
+      const cosmetic_condition =
+        document.getElementById("form-cosmetic").value.trim();
+
+      const faults =
+        document.getElementById("form-faults").value.trim();
+
+      const accessories_included =
+        document.getElementById("form-accessories").value.trim();
+
+      const description =
+        document.getElementById("form-description").value.trim();
+
+      const featured =
+        document.getElementById("form-featured").checked;
+
       const status = forcedStatusToSave || "published";
 
-      // Parse specifications
-      const specsRaw = document.getElementById("form-specs-raw").value;
+      // Parse specifications.
+      const specsRaw =
+        document.getElementById("form-specs-raw").value;
+
       const specs = {};
+
       specsRaw.split("\n").forEach((line) => {
         const parts = line.split(":");
+
         if (parts.length >= 2) {
-          const k = parts[0].trim();
-          const v = parts.slice(1).join(":").trim();
-          if (k && v) specs[k] = v;
+          const key = parts[0].trim();
+          const value = parts.slice(1).join(":").trim();
+
+          if (key && value) {
+            specs[key] = value;
+          }
         }
       });
 
-      // 1. Upload new staged image files through Database layer
+      // 1. Upload all newly selected image files.
       const uploadedUrls = [];
-      for (const file of stagedImageFiles) {
-        const url = await Database.uploadImageFile(file);
+
+      for (let i = 0; i < stagedImageFiles.length; i++) {
+        if (saveBtn) {
+          saveBtn.textContent =
+            `Uploading image ${i + 1} of ${stagedImageFiles.length}…`;
+        }
+
+        const url = await Database.uploadImageFile(
+          stagedImageFiles[i]
+        );
+
         uploadedUrls.push(url);
       }
 
-      // Combine existing non-data URLs with newly uploaded URLs
-      const existingUrls = currentProductImageUrls.filter((u) => !u.startsWith("data:"));
-      const finalImageUrls = [...existingUrls, ...uploadedUrls];
+      // 2. Preserve the exact image order, including the primary image.
+      let uploadedIndex = 0;
+
+      const finalImageUrls = currentProductImageUrls.map((url) => {
+        if (url.startsWith("data:")) {
+          return uploadedUrls[uploadedIndex++];
+        }
+
+        return url;
+      });
+
       if (finalImageUrls.length === 0) {
         finalImageUrls.push("../assets/images/placeholder.svg");
       }
 
+      // 3. Prepare product data.
       const productPayload = {
         name,
         brand,
@@ -635,7 +760,9 @@ const AdminApp = (() => {
         model_age,
         inventory_type,
         stock_quantity,
-        battery_health: battery_health ? Number(battery_health) : null,
+        battery_health: battery_health
+          ? Number(battery_health)
+          : null,
         cosmetic_condition: cosmetic_condition || null,
         faults: faults || null,
         accessories_included: accessories_included || null,
@@ -645,27 +772,62 @@ const AdminApp = (() => {
         status,
       };
 
-      if (editId) {
-        await Database.updateProduct(editId, productPayload, finalImageUrls);
-        showToast(`Updated "${name}" successfully.`, "success");
-      } else {
-        await Database.createProduct(productPayload, finalImageUrls);
-        showToast(`Added "${name}" to inventory!`, "success");
+      // 4. Save the product.
+      if (saveBtn) {
+        saveBtn.textContent = "Saving product…";
       }
 
+      if (editId) {
+        await Database.updateProduct(
+          editId,
+          productPayload,
+          finalImageUrls
+        );
+
+        showToast(
+          `Updated "${name}" successfully.`,
+          "success"
+        );
+      } else {
+        await Database.createProduct(
+          productPayload,
+          finalImageUrls
+        );
+
+        showToast(
+          `Added "${name}" to inventory!`,
+          "success"
+        );
+      }
+
+      // 5. Reset modal state after successful save.
       closeFormModal();
+
+      stagedImageFiles = [];
+      currentProductImageUrls = [];
+      pendingImageSelection = Promise.resolve();
+
       await loadDashboardData();
+
     } catch (err) {
       console.error("Save error:", err);
-      showToast("Error saving product: " + err.message, "error");
+
+      showToast(
+        "Error saving product: " +
+        (err.message || "An unexpected error occurred."),
+        "error"
+      );
+
     } finally {
       forcedStatusToSave = null;
+
       if (saveBtn) {
         saveBtn.disabled = false;
         saveBtn.textContent = "Publish Product";
       }
     }
   }
+
 
   // ── Filters & Search ──────────────────────────────────────────────────────
   function filterStatus(status) {
